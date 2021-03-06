@@ -1,0 +1,37 @@
+{
+    "name": "alite/engine",
+    "description": "Alite Engine",
+    "keywords": ["alite", "library"],
+    "homepage": "",
+    "type": "library",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "Amit Singh",
+            "email": "dev.singhamit@gmail.com",
+            "homepage": ""
+        }
+    ],
+    "require": {
+        "php": ">=5.6.0"
+    },
+    "require-dev": {
+    },
+    "suggest": {
+    },
+    "autoload": {
+        "psr-4": {
+            "Alite\\Engine\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {}
+    },
+    "provide": {},
+    "extra": {
+        "branch-alias": {}
+    },
+    "scripts": {
+        "test": []
+    }
+}
