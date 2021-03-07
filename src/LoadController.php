@@ -212,7 +212,6 @@ class LoadController {
         $regex = str_replace(array_keys($paramsToRegex), array_values($paramsToRegex), $routeKey);
         $regex = str_replace('/', '\/', $regex);
 
-        s($regex . '-' . $this->trimRequestUri, '/');
         if (preg_match("/^\/?$regex/", $this->trimRequestUri, $matches)) {
             $this->trimRequestUri = preg_replace("/^\/?$regex/", "", $this->trimRequestUri);
 
