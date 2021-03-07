@@ -14,16 +14,16 @@ class Bootstrap implements BootstrapInterface {
      */
     public function __construct($config, $serviceContainer = null) {
 
-        if (!defined('PUBLIC_ABSPATH')) {
-            $MSG = ['PUBLIC', '_ABSPATH', ' must', ' be', ' defined', ' in', ' constants.'];
+        if (!defined('ABSPATH')) {
+            $MSG = ['Error : ', 'ABSPATH', ' must', ' be', ' defined'];
             die(implode('', $MSG));
         }
 
         $this->config = $config;
         $this->services = $serviceContainer;
 
-        if (file_exists(realpath(PUBLIC_ABSPATH . '/../') . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'routes.php')) {
-            $routesArray = require_once realpath(PUBLIC_ABSPATH . '/../') . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'routes.php';
+        if (file_exists(ABSPATH . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'routes.php')) {
+            $routesArray = require_once ABSPATH . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'routes.php';
             $this->routes = $routesArray;
         } else {
             $MSG = ['Route', ' file', ' is', ' missing'];
