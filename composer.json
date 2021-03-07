@@ -21,7 +21,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Alite\\Engine\\": "src/"
+            "Alite\\": "src/"
         }
     },
     "autoload-dev": {
