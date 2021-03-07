@@ -77,7 +77,6 @@ class LoadController {
      * @return $this
      */
     private function setRequestUri() {
-        echo $_SERVER['REQUEST_URI'] . '<br/>';
         $this->requestUri = preg_replace('/\?.*/', '', preg_replace('/.*index\.php\/?/', '', $_SERVER['REQUEST_URI']));
         $this->requestUri = $this->trimRequestUri = preg_replace('/\/+/', '/', rtrim($this->requestUri, '/') . '/');
         return $this;
@@ -190,7 +189,6 @@ class LoadController {
         }
 
         if ($this->controllerObj == NULL) {
-            s($this->trimRequestUri);
             if (class_exists($this->controllerNamespace . '\Index') && $this->trimRequestUri == '/') {
                 $this->getController($this->controllerNamespace . '\Index')->callAction('index');
             } else {
