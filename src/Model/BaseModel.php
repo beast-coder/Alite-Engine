@@ -2,146 +2,323 @@
 
 namespace Alite\Model;
 
-use Service\Database\Database;
-use PDOException;
-use PDO;
+use Alite\Database\Database;
+use Alite\AliteException\AliteException;
 
 /**
  * Abstract model class
  */
 abstract class BaseModel {
 
+    protected $conn = null;
+    private $db = "";
     protected $table;
-    protected $fields = array();
-    protected $dbConn = null;
-    protected $sql;
+    private $debug = false;
 
     /**
      * constructor
      */
     public function __construct() {
-        if (!is_object($this->dbConn))
-            $this->dbConn = Database::getConnection();
+        
     }
 
-    /**
-     * @author Amit Singh
-     * @param type array $data
-     * @description bind data with class property array
-     */
-    protected function bind($data = array()) {
+    protected function connect($db = []) {
+        if (empty($db)) {
+            if (empty($this->config['DATABASE']['default'])) {
+                $error = ['Error : DATABASE', " default", ' is', ' empty', ' in config'];
+                new AliteException(implode('', $error));
+            } else {
+                try {
+                    $this->db = $this->config['DATABASE']['default'];
+                    $this->conn = Database::getConnection($this->config['DATABASE']['default']);
+                } catch (\Exception $e) {
+                    new AliteException($e->getMessage());
+                }
+            }
+        } else {
+            $this->db = $db;
+            $this->conn = Database::getConnection($db);
+        }
+        return $this;
+    }
 
-        foreach ($this->fields as $key => $value) {
+    public function setTable($table = '') {
+        if (!empty($table)) {
+            $this->table = $table;
+        }
+        return $this;
+    }
 
-            if (array_key_exists($key, $data)) {
-                $this->fields[$key] = $data[$key];
+    public function debug() {
+        $this->debug = true;
+        return $this;
+    }
+
+    private function getTableFields() {
+
+        if (empty($this->table)) {
+            new AliteException('Table name is missing');
+        }
+
+        $sql = "select * from information_schema.columns where table_schema = '" . $this->db['DBNAME'] . "' and table_name = '" . $this->table . "'";
+        $stmt = $this->conn->prepare($sql);
+        try {
+            $stmt->execute();
+        } catch (\Exception $e) {
+            new AliteException($e->getMessage());
+        }
+        $tableSchema = $stmt->fetchAll();
+        $fields = [];
+        foreach ($tableSchema as $value) {
+            $fields[] = $value['COLUMN_NAME'];
+        }
+
+        return $fields;
+    }
+
+    public function query($sql = '', array $where = [], $queryType = 'all') {
+
+        if (!$sql) {
+            return false;
+        }
+
+        if (!$this->conn) {
+            $this->connect();
+        }
+
+        $result = [];
+
+        $stmt = $this->conn->prepare($sql);
+        try {
+            $stmt->execute($where);
+        } catch (\Exception $e) {
+            new AliteException($e->getMessage());
+        }
+//        echo $stmt->fullQuery;
+//        echo '<pre>';
+//        $stmt->debugDumpParams();
+//        echo '</pre>';
+
+        switch ($queryType) {
+            case 'first':
+                $result = $stmt->fetch();
+                break;
+
+            case 'all':
+                $result['data'] = $stmt->fetchAll();
+                $result['no_of_rows'] = $stmt->rowCount();
+                break;
+
+            case 'update':
+            case 'delete':
+                $result['affected_rows'] = $stmt->rowCount();
+                break;
+
+            case 'insert':
+                $result['insert_id'] = $this->conn->lastInsertId();
+                break;
+
+            default:
+                break;
+        }
+        return $result;
+    }
+
+    public function insert($data = []) {
+
+        if (!$this->conn) {
+            $this->connect();
+        }
+
+        $data['created_on'] = date('Y-m-d H:i:s');
+        $data['created_by'] = $_SESSION['admin']['id'];
+
+        $fields = $this->getTableFields();
+        $newData = [];
+
+        foreach ($data as $key => $value) {
+            if (in_array($key, $fields)) {
+                $newData[$key] = trim($value);
             }
         }
-    }
 
-    /**
-     * @author Amit Singh
-     * @param type string $fieldValue
-     * @param type string $fields
-     * @param type string $fieldName
-     * @return type array
-     */
-    public function fetch($fieldValue = 0, $fieldName = 'id', $fields = '*') {
+        //s($this->table);
+        if (!empty($newData)) {
 
-        $this->sql = "SELECT $fields FROM $this->table WHERE $fieldName = $fieldValue LIMIT 1";
-        $stmt = $this->dbConn->prepare($this->sql);
-        $stmt->execute();
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row;
-    }
+            $fieldsArr = array_keys($newData);
+            $fieldsStr = implode(',', $fieldsArr);
+            $questionMark = rtrim(str_repeat("?,", count($fieldsArr)), ',');
+            $values = array_values($newData);
 
-    /**
-     * 
-     * @param type $fields
-     * @return type
-     */
-    public function fetchAll($fields = '*') {
+            $sql = "INSERT INTO $this->table ($fieldsStr) VALUES($questionMark)";
+            $stmt = $this->conn->prepare($sql);
 
-        $this->sql = "SELECT $fields FROM $this->table";
-        $stmt = $this->dbConn->prepare($this->sql);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        return $rows;
-    }
+            if ($this->debug) {
+                echo '<pre>';
+                print_r($stmt->debugDumpParams());
+                echo '</pre>';
+            }
 
-    /**
-     * 
-     * @param type $sql
-     * @return type
-     */
-    public function query($sql = '') {
+            try {
+                $stmt->execute($values);
+            } catch (\Exception $e) {
+                new AliteException($e->getMessage());
+            }
 
-        $this->sql = $sql;
-        $stmt = $this->dbConn->prepare($this->sql);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        return $rows;
-    }
-
-    /**
-     * @author Amit Singh
-     * @method insert
-     * @param type array $data
-     */
-    public function insert($data = array()) {
-
-        $this->bind($data);
-
-        $this->sql = 'INSERT INTO ' . $this->table;
-        $fields = $fieldValues = '';
-        foreach ($this->fields as $key => $value) {
-            $fields .= '`' . $key . '`,';
-            $fieldValues .= ':' . $key . ',';
-        }
-
-        $this->sql .= '(' . trim($fields, ',') . ') VALUES (' . trim($fieldValues, ',') . ')';
-
-        try {
-
-            $statement = $this->dbConn->prepare($this->sql);
-            $statement->execute($this->fields);
-        } catch (PDOException $e) {
-            echo 'Insert Error : ' . $e->getMessage();
-            exit;
+            return $this->conn->lastInsertId();
+        } else {
+            new AliteException('No Data To Save');
         }
     }
 
-    /**
-     * @author Amit Singh
-     * @method update
-     * @param type array $data
-     * @param type string $field
-     * @param type int $id
-     */
-    public function update($data = array(), $field = 'id') {
+    public function update($data = [], $id) {
 
-        $this->sql = 'UPDATE ' . $this->table . ' SET ';
-        $fields = $fieldValues = '';
+        if (!$this->conn) {
+            $this->connect();
+        }
+
+        $data['updated_on'] = date('Y-m-d H:i:s');
+        $data['updated_by'] = $_SESSION['admin']['id'];
+
+        $fields = $this->getTableFields();
+        $newData = [];
+
         foreach ($data as $key => $value) {
-
-            if ($key == $field)
-                continue;
-
-            $this->sql .= '`' . $key . '` = ' . ':' . $key . ', ';
+            if (in_array($key, $fields)) {
+                $newData[$key] = trim($value);
+            }
         }
 
-        $this->sql = trim($this->sql, ', ');
-        $this->sql .= ' WHERE ' . '`' . $field . '` = :' . $field;
+        if (!empty($newData)) {
+
+            $fieldsArr = array_keys($newData);
+            $fieldsStr = (implode('=?,', $fieldsArr)) . "=?";
+            $values = array_values($newData);
+
+            if (is_array($id)) {
+                //$where = 
+            } else {
+                $where = " WHERE id = '" . $id . "'";
+            }
+
+            $sql = "UPDATE $this->table SET $fieldsStr $where";
+            $stmt = $this->conn->prepare($sql);
+
+            if ($this->debug) {
+                echo '<pre>';
+                print_r($stmt->debugDumpParams());
+                echo '</pre>';
+            }
+
+            try {
+                $stmt->execute($values);
+            } catch (\Exception $e) {
+                new AliteException($e->getMessage());
+            }
+
+            return $stmt->rowCount();
+        } else {
+            return false;
+        }
+    }
+
+    public function getById($id) {
+
+        if (empty($this->table)) {
+            new AliteException('Table name is missing');
+        }
+
+        if (!$this->conn) {
+            $this->connect();
+        }
+
+        $sql = "select * from $this->table where id = ?";
+        $stmt = $this->conn->prepare($sql);
+
+        if ($this->debug) {
+            echo '<pre>';
+            print_r($stmt->debugDumpParams());
+            echo '</pre>';
+        }
 
         try {
-
-            $statement = $this->dbConn->prepare($this->sql);
-            $statement->execute($data);
-            $this->bind($data);
-        } catch (PDOException $e) {
-            echo 'Update Error : ' . $e->getMessage();
-            exit;
+            $stmt->execute([$id]);
+        } catch (\Exception $e) {
+            new AliteException($e->getMessage());
         }
+
+        return $stmt->fetch();
+    }
+
+    public function fetchAll($where = [], $fields = "*") {
+
+        if (empty($this->table)) {
+            new AliteException('Table name is missing');
+        }
+
+        if (!$this->conn) {
+            $this->connect();
+        }
+
+        $cond = "";
+        $values = [];
+        if (!empty($where) && is_array($where)) {
+            $keys = array_keys($where);
+            $values = array_values($where);
+            $cond = " WHERE " . implode("=? AND ", $keys) . "=?";
+        }
+
+        $sql = "select $fields from $this->table $cond";
+        $stmt = $this->conn->prepare($sql);
+
+        if ($this->debug) {
+            echo '<pre>';
+            print_r($stmt->debugDumpParams());
+            echo '</pre>';
+        }
+
+        try {
+            $stmt->execute($values);
+        } catch (\Exception $e) {
+            new AliteException($e->getMessage());
+        }
+
+        return $stmt->fetchAll();
+    }
+
+    public function fetch($where = [], $fields = "*") {
+
+        if (empty($this->table)) {
+            new AliteException('Table name is missing');
+        }
+        if (!$this->conn) {
+            $this->connect();
+        }
+
+        $cond = "";
+        $values = [];
+        if (!empty($where) && is_array($where)) {
+            $keys = array_keys($where);
+            $values = array_values($where);
+            $cond = " WHERE " . implode("=? AND ", $keys) . "=?";
+        }
+
+        $sql = "select $fields from $this->table $cond";
+        $stmt = $this->conn->prepare($sql);
+
+        if ($this->debug) {
+            echo '<pre>';
+            print_r($stmt->debugDumpParams());
+            echo '</pre>';
+        }
+
+        try {
+            $stmt->execute($values);
+        } catch (\Exception $e) {
+            new AliteException($e->getMessage());
+        }
+
+        return $stmt->fetch();
     }
 
 }

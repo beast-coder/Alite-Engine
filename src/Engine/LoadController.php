@@ -2,6 +2,8 @@
 
 namespace Alite\Engine;
 
+use Alite\AliteException\AliteException;
+
 class LoadController {
 
     /**
@@ -53,12 +55,25 @@ class LoadController {
     private $controllerObj = null;
 
     /**
+     *
+     * @var type 
+     */
+    private $di = null;
+
+    /**
+     *
+     * @var type 
+     */
+    private $nameCases = null;
+
+    /**
      * 
      * @param type $bootObj
      */
     public function __construct($bootObj) {
         $this->bootObj = $bootObj;
         $this->scanDir = new ScanDir();
+        $this->nameCases = new NameCases();
         $this->di = new DI();
     }
 
@@ -133,10 +148,20 @@ class LoadController {
         return $this;
     }
 
+    private function resetControllerDir($partsArr, &$index) {
+
+        while (!empty($partsArr[$index]) && $partsArr[0] != '/' && $dir = $this->nameCases->isDir($this->controllerDir, $partsArr[$index])) {
+
+            $this->controllerDir = rtrim($this->controllerDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $dir;
+            $this->controllerNamespace = rtrim($this->controllerNamespace, '\\') . '\\' . $dir;
+            $index++;
+        }
+    }
+
     /**
      * 
      */
-    private function resetControllerDir($partsArr, &$index) {
+    private function resetControllerDir2($partsArr, &$index) {
 
         while (!empty($partsArr[$index]) && $partsArr[0] != '/' &&
         is_dir(rtrim($this->controllerDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $partsArr[$index])) {
@@ -145,6 +170,25 @@ class LoadController {
             $this->controllerNamespace = rtrim($this->controllerNamespace, '\\') . '\\' . $partsArr[$index];
             $index++;
         }
+
+        /**
+         * load controller if controller file exist after directory end
+         */
+        /* if (!empty($partsArr[$index]) &&
+          file_exists(rtrim($this->controllerDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $partsArr[$index] . '.php')) {
+
+          $this->getController(rtrim($this->controllerNamespace, '\\') . '\\' . $partsArr[$index]);
+          $index++;
+          if (!empty($partsArr[$index]) && method_exists($this->controllerObj, $partsArr[$index])) {
+
+          $method = $partsArr[$index];
+          $paramsArr = array_slice($partsArr, ++$index);
+          $this->callAction($method, array_keys($paramsArr), array_values($paramsArr));
+          } else {
+          $paramsArr = array_slice($partsArr, $index);
+          $this->callAction('index', array_keys($paramsArr), array_values($paramsArr));
+          }
+          } */
     }
 
     /**
@@ -152,14 +196,20 @@ class LoadController {
      * @param type $controllerClass
      * @return $this
      */
-    public function getController($controllerClass) {
-        $this->controllerObj = $this->di->dependencyInjector($controllerClass);
+    private function getController($controllerClass) {
+        $this->controllerObj = $this->di->dependencyInjector($controllerClass, $this->bootObj);
+
         $this->controllerObj->config = $this->bootObj->config;
         $this->controllerObj->services = $this->bootObj->services;
-        return $this;
+        $this->controllerObj->fetchController = function($class) use($controllerClass) {
+            if ($controllerClass != $class) {
+                return $this->getController($class);
+            }
+        };
+        return $this->controllerObj;
     }
 
-    public function callAction($action = 'index', $paramsArr = [], $matches = []) {
+    private function callAction($action = 'index', $paramsArr = [], $matches = []) {
 
         $newParamsArr = array_map(function($param) use ($matches) {
             $key = str_replace('$', '', $param);
@@ -171,11 +221,19 @@ class LoadController {
         }, $paramsArr);
 
         if (method_exists($this->controllerObj, $action)) {
-            call_user_func_array(array($this->controllerObj, $action), $newParamsArr);
+            if (is_callable([$this->controllerObj, $action])) {
+                call_user_func_array(array($this->controllerObj, $action), $newParamsArr);
+            } else {
+                $this->getController($this->controllerNamespace . '\PageNotFound');
+                $this->callAction('index');
+            }
+            exit();
         } else {
-            $MSG = ['Error : ', " $action method", ' does', ' not', ' exist of class ' . get_class($this->controllerObj)];
-            die(implode('', $MSG));
+            $MSG = ['Error : ', " $action method", ' does', ' not', ' exist in ' . get_class($this->controllerObj)];
+            new AliteException(implode('', $MSG));
         }
+
+        return true;
     }
 
     /**
@@ -185,23 +243,48 @@ class LoadController {
     private function processRoute() {
 
         foreach ($this->bootObj->routes as $routeKey => $routeValue) {
-            $this->compareRoute($routeKey, $routeValue);
+            if ($this->compareRoute($routeKey, $routeValue)) {
+                break;
+            }
+        }
+
+        /**
+         * load controller if controller file exist after route check end
+         */
+        $partsArr = explode('/', $this->trimRequestUri);
+        $index = 0;
+
+        if (!empty($partsArr[$index]) && $file = $this->nameCases->isFile($this->controllerDir, $partsArr[$index])) {
+
+            $this->getController(rtrim($this->controllerNamespace, '\\') . '\\' . $file);
+            $index++;
+            if (!empty($partsArr[$index]) && $method = $this->nameCases->hasMethod($this->controllerObj, $partsArr[$index])) {
+                $paramsArr = array_slice($partsArr, ++$index);
+                $this->callAction($method, array_keys($paramsArr), array_values($paramsArr));
+            } else {
+                $paramsArr = array_slice($partsArr, $index);
+                $this->callAction('index', array_keys($paramsArr), array_values($paramsArr));
+            }
         }
 
         if ($this->controllerObj == NULL) {
             if (class_exists($this->controllerNamespace . '\Index') && $this->trimRequestUri == '/') {
-                $this->getController($this->controllerNamespace . '\Index')->callAction('index');
+                $this->getController($this->controllerNamespace . '\Index');
+                $this->callAction('index');
             } else {
                 if (class_exists($this->controllerNamespace . '\PageNotFound')) {
-                    $this->getController($this->controllerNamespace . '\PageNotFound')->callAction('index');
+                    $this->getController($this->controllerNamespace . '\PageNotFound');
+                    $this->callAction('index');
                 } else {
-                    $this->getController('\App\Controller\PageNotFound')->callAction('index');
+                    $this->getController('\App\Controller\PageNotFound');
+                    $this->callAction('index');
                 }
             }
         }
     }
 
     private function compareRoute($routeKey, $routeValue) {
+        //echo $routeKey . '----' . $routeValue . '----------' . $this->trimRequestUri . '<br/>';
 
         $paramsToRegex[':any'] = "[^/]+";
         $paramsToRegex[':num'] = "[0-9]+";
@@ -210,7 +293,8 @@ class LoadController {
         $regex = str_replace(array_keys($paramsToRegex), array_values($paramsToRegex), $routeKey);
         $regex = str_replace('/', '\/', $regex);
 
-        if (preg_match("/^\/?$regex/", $this->trimRequestUri, $matches)) {
+        //echo $routeKey . '----' . $this->trimRequestUri . '<br/>';
+        if (preg_match("/^\/?$regex\/?$/", $this->trimRequestUri, $matches)) {
             $this->trimRequestUri = preg_replace("/^\/?$regex/", "", $this->trimRequestUri);
 
             if (is_array($routeValue)) {
@@ -225,21 +309,28 @@ class LoadController {
 
                 if (empty($routeValueParts[$routeValueIndex])) {
                     $MSG = ['Controller', ' class', ' is', ' missing', ' in route' . ' -> ', $routeKey];
-                    die(implode('', $MSG));
+                    new AliteException(implode('', $MSG));
                 } else {
 
                     $this->getController($this->controllerNamespace . '\\' . $routeValueParts[$routeValueIndex]);
                     $routeValueIndex = ++$routeValueIndex;
                     if (empty($routeValueParts[$routeValueIndex])) {
-                        $this->callAction('index');
+                        return $this->callAction('index');
                     } elseif (!method_exists($this->controllerObj, $routeValueParts[$routeValueIndex])) {
 
                         $MSG = ['Action', ' is', ' missing', ' in route' . ' -> ', $routeKey];
-                        die(implode('', $MSG));
+                        new AliteException(implode('', $MSG));
                     } else {
                         $action = $routeValueParts[$routeValueIndex];
-                        $this->callAction($action, array_slice($routeValueParts, ++$routeValueIndex), $matches);
+                        return $this->callAction($action, array_slice($routeValueParts, ++$routeValueIndex), $matches);
                     }
+                }
+            }
+        } elseif (preg_match("/^\/?$regex\/?/", $this->trimRequestUri, $matches)) {
+            $this->trimRequestUri = preg_replace("/^\/?$regex/", "", $this->trimRequestUri);
+            if (is_array($routeValue)) {
+                foreach ($routeValue as $key => $value) {
+                    $this->compareRoute($key, $value);
                 }
             }
         }
@@ -271,7 +362,7 @@ class LoadController {
 
                 if (empty($routeValueParts[$routeValueIndex])) {
                     $MSG = ['Controller', ' class', ' is', ' missing', ' in route' . ' -> ', $routeKey];
-                    die(implode('', $MSG));
+                    new AliteException(implode('', $MSG));
                 } else {
 
                     $this->getController($this->controllerNamespace . '\\' . $routeValueParts[$routeValueIndex]);
@@ -281,7 +372,7 @@ class LoadController {
                     } elseif (!method_exists($this->controllerObj, $routeValueParts[$routeValueIndex])) {
 
                         $MSG = ['Action', ' is', ' missing', ' in route' . ' -> ', $routeKey];
-                        die(implode('', $MSG));
+                        new AliteException(implode('', $MSG));
                     } else {
                         $action = $routeValueParts[$routeValueIndex];
                         $this->callAction($action, array_slice($routeValueParts, ++$routeValueIndex), $matches);

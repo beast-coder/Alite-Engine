@@ -2,6 +2,8 @@
 
 namespace Alite\Engine;
 
+use Alite\AliteException\AliteException;
+
 /**
  * Regex routing checks when doesn't match any controller or action.
  */
@@ -16,7 +18,7 @@ class Bootstrap implements BootstrapInterface {
 
         if (!defined('ABSPATH')) {
             $MSG = ['Error : ', 'ABSPATH', ' must', ' be', ' defined'];
-            die(implode('', $MSG));
+            new AliteException(implode('', $MSG));
         }
 
         $this->config = $config;
@@ -27,7 +29,7 @@ class Bootstrap implements BootstrapInterface {
             $this->routes = $routesArray;
         } else {
             $MSG = ['Route', ' file', ' is', ' missing'];
-            die(implode('', $MSG));
+            new AliteException(implode('', $MSG));
         }
     }
 
