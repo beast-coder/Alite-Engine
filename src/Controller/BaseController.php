@@ -3,7 +3,6 @@
 namespace Alite\Controller;
 
 use Alite\AliteException\AliteException;
-use Alite\Engine\NameCases;
 
 abstract class BaseController {
 
@@ -12,16 +11,19 @@ abstract class BaseController {
     protected $contents;
     protected $scripts = [];
     protected $styleSheets = [];
-    private $nameCases = null;
+    public static $instance;
 
     public function __construct() {
+        self::$instance = & $this;
         $this->layoutFile = rtrim(ABSPATH, DIRECTORY_SEPARATOR) .
                 DIRECTORY_SEPARATOR . 'app' .
                 DIRECTORY_SEPARATOR . 'View' .
                 DIRECTORY_SEPARATOR . 'Layout' .
                 DIRECTORY_SEPARATOR . 'layout.php';
+    }
 
-        $this->nameCases = new NameCases();
+    public static function getAlite() {
+        return self::$instance;
     }
 
     public function setLayout($layout = false) {

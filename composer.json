@@ -22,7 +22,10 @@
     "autoload": {
         "psr-4": {
             "Alite\\": "src/"
-        }
+        },
+        "files": [
+            "src/Alite.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {}
