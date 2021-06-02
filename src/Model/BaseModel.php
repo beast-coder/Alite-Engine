@@ -14,6 +14,7 @@ abstract class BaseModel {
     private $db = "";
     protected $table;
     private $debug = false;
+    protected $alite;
 
     /**
      * constructor
@@ -24,13 +25,15 @@ abstract class BaseModel {
 
     protected function connect($db = []) {
         if (empty($db)) {
-            if (empty($this->config['DATABASE']['default'])) {
+
+            $this->alite = get_alite();
+            if (empty($this->alite->config['DATABASE']['default'])) {
                 $error = ['Error : DATABASE', " default", ' is', ' empty', ' in config'];
                 new AliteException(implode('', $error));
             } else {
                 try {
-                    $this->db = $this->config['DATABASE']['default'];
-                    $this->conn = Database::getConnection($this->config['DATABASE']['default']);
+                    $this->db = $this->alite->config['DATABASE']['default'];
+                    $this->conn = Database::getConnection($this->alite->config['DATABASE']['default']);
                 } catch (\Exception $e) {
                     new AliteException($e->getMessage());
                 }

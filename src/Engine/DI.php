@@ -13,7 +13,7 @@ class DI {
         
     }
 
-    public function dependencyInjector($class, BootstrapInterface $bootObj) {
+    public function dependencyInjector($class) {
 
         if (!class_exists($class)) {
             $MSG = ['Error : ', $class, ' : ', ' doesn\'t ', ' exist!'];
@@ -50,20 +50,19 @@ class DI {
                     if (array_key_exists(strtolower($dependency->name), $this->singleTon)) {
                         $dependencies[] = $this->singleTon[strtolower($dependency->name)];
                     } else {
-                        $obj = $this->dependencyInjector($dependency->name, $bootObj);
-                        $obj->config = $bootObj->config;
-                        $obj->services = $bootObj->services;
-                        $obj->fetchController = function($class) {
-                            if ($controllerClass != $class || TRUE) {
-                                $this->dependencyInjector($class, $bootObj);
-                            }
-                        };
+                        $obj = $this->dependencyInjector($dependency->name);
                         $this->singleTon[strtolower($dependency->name)] = $dependencies[] = $obj;
                     }
                 }
             }
         }
         return new $class(...$dependencies);
+    }
+
+    public function load() {
+        return function($class) {
+            $this->dependencyInjector($class);
+        };
     }
 
     public function setSingleTon(Array $objArr = []) {

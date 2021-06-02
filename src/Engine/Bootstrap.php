@@ -14,18 +14,26 @@ class Bootstrap implements BootstrapInterface {
     /**
      *
      */
-    public function __construct($config, $serviceContainer = null) {
+    public function __construct() {
 
-        if (!defined('ABSPATH')) {
-            $MSG = ['Error : ', 'ABSPATH', ' must', ' be', ' defined'];
+        if (!defined('DS')) {
+            define('DS', DIRECTORY_SEPARATOR);
+        }
+
+        if (!defined('ROOTPATH')) {
+            $MSG = ['Error : ', 'ROOTPATH', ' must', ' be', ' defined'];
             new AliteException(implode('', $MSG));
         }
 
-        $this->config = $config;
-        $this->services = $serviceContainer;
+        if (!defined('ENV')) {
+            define('ENV', 'production');
+        }
 
-        if (file_exists(ABSPATH . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'routes.php')) {
-            $routesArray = require_once ABSPATH . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'routes.php';
+        $this->config = getAliteConfig();
+        loadAliteConstants();
+
+        if (file_exists(ROOTPATH . DS . 'routes' . DS . 'routes.php')) {
+            $routesArray = require_once ROOTPATH . DS . 'routes' . DS . 'routes.php';
             $this->routes = $routesArray;
         } else {
             $MSG = ['Route', ' file', ' is', ' missing'];
@@ -36,7 +44,7 @@ class Bootstrap implements BootstrapInterface {
     /**
      * 
      */
-    public function run() {
+    public function init() {
 
         $controller = new LoadController($this);
         $controller->get();

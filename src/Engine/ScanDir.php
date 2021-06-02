@@ -28,13 +28,13 @@ class ScanDir {
     public function getControllerDir() {
         $curDir = __DIR__;
         while (true) {
-            if (is_dir($curDir . DIRECTORY_SEPARATOR . 'App' . DIRECTORY_SEPARATOR . 'Controller')) {
+            if (is_dir($curDir . DS . 'App' . DS . 'Controller')) {
                 break;
             } else {
                 $curDir = dirname($curDir);
             }
         }
-        return $curDir . DIRECTORY_SEPARATOR . 'App' . DIRECTORY_SEPARATOR . 'Controller' . DIRECTORY_SEPARATOR;
+        return $curDir . DS . 'App' . DS . 'Controller' . DS;
     }
 
 }

@@ -70,7 +70,7 @@ class LoadController {
      * 
      * @param type $bootObj
      */
-    public function __construct($bootObj) {
+    public function __construct($bootObj = null) {
         $this->bootObj = $bootObj;
         $this->scanDir = new ScanDir();
         $this->nameCases = new NameCases();
@@ -139,8 +139,7 @@ class LoadController {
         if (!empty($this->bootObj->config['CONTROLLER_PATH'])) {
             $this->controllerDir = $this->bootObj->config['CONTROLLER_PATH'];
         } elseif (!empty($this->bootObj->config['PUBLIC_ABSPATH'])) {
-            $this->controllerDir = realpath($this->bootObj->config['PUBLIC_ABSPATH'] . DIRECTORY_SEPARATOR . '..' .
-                    DIRECTORY_SEPARATOR . 'App' . DIRECTORY_SEPARATOR . 'Controller');
+            $this->controllerDir = realpath($this->bootObj->config['PUBLIC_ABSPATH'] . DS . '..' . DS . 'App' . DS . 'Controller');
         } else {
             $this->controllerDir = $this->scanDir->getControllerDir();
         }
@@ -152,43 +151,10 @@ class LoadController {
 
         while (!empty($partsArr[$index]) && $partsArr[0] != '/' && $dir = $this->nameCases->isDir($this->controllerDir, $partsArr[$index])) {
 
-            $this->controllerDir = rtrim($this->controllerDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $dir;
+            $this->controllerDir = rtrim($this->controllerDir, DS) . DS . $dir;
             $this->controllerNamespace = rtrim($this->controllerNamespace, '\\') . '\\' . $dir;
             $index++;
         }
-    }
-
-    /**
-     * 
-     */
-    private function resetControllerDir2($partsArr, &$index) {
-
-        while (!empty($partsArr[$index]) && $partsArr[0] != '/' &&
-        is_dir(rtrim($this->controllerDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $partsArr[$index])) {
-
-            $this->controllerDir = rtrim($this->controllerDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $partsArr[$index];
-            $this->controllerNamespace = rtrim($this->controllerNamespace, '\\') . '\\' . $partsArr[$index];
-            $index++;
-        }
-
-        /**
-         * load controller if controller file exist after directory end
-         */
-        /* if (!empty($partsArr[$index]) &&
-          file_exists(rtrim($this->controllerDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $partsArr[$index] . '.php')) {
-
-          $this->getController(rtrim($this->controllerNamespace, '\\') . '\\' . $partsArr[$index]);
-          $index++;
-          if (!empty($partsArr[$index]) && method_exists($this->controllerObj, $partsArr[$index])) {
-
-          $method = $partsArr[$index];
-          $paramsArr = array_slice($partsArr, ++$index);
-          $this->callAction($method, array_keys($paramsArr), array_values($paramsArr));
-          } else {
-          $paramsArr = array_slice($partsArr, $index);
-          $this->callAction('index', array_keys($paramsArr), array_values($paramsArr));
-          }
-          } */
     }
 
     /**
@@ -197,15 +163,12 @@ class LoadController {
      * @return $this
      */
     private function getController($controllerClass) {
-        $this->controllerObj = $this->di->dependencyInjector($controllerClass, $this->bootObj);
+        $this->controllerObj = $this->di->dependencyInjector($controllerClass);
 
-        $this->controllerObj->config = $this->bootObj->config;
-        $this->controllerObj->services = $this->bootObj->services;
-        $this->controllerObj->fetchController = function($class) use($controllerClass) {
-            if ($controllerClass != $class) {
-                return $this->getController($class);
-            }
-        };
+        if ($this->bootObj instanceof \Alite\Engine\Bootstrap) {
+            $this->controllerObj->config = $this->bootObj->config;
+        }
+
         return $this->controllerObj;
     }
 
